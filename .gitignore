@@ -2,8 +2,11 @@
 credentials.json
 token.json
 config.yaml
+config/*.yaml
+config/*.json
 *.pem
 *.key
+*.secrets
 .env
 
 # 数据目录
@@ -28,3 +31,5 @@ Thumbs.db
 *.log
 *.tmp
 *.bak
+*.prof
+*.trace

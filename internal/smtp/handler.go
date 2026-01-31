@@ -53,11 +53,18 @@ func (h *ForwarderHandler) buildRFC2822Message(from string, to []string, data []
 
 	var buf bytes.Buffer
 
+	// Track which headers we've written to avoid duplicates
+	hasFrom := false
+	hasTo := false
+
 	for key, values := range msg.Header {
-		if strings.ToLower(key) == "from" {
+		keyLower := strings.ToLower(key)
+		if keyLower == "from" {
 			fmt.Fprintf(&buf, "From: %s\r\n", from)
-		} else if strings.ToLower(key) == "to" {
+			hasFrom = true
+		} else if keyLower == "to" {
 			fmt.Fprintf(&buf, "To: %s\r\n", strings.Join(to, ", "))
+			hasTo = true
 		} else {
 			for _, value := range values {
 				fmt.Fprintf(&buf, "%s: %s\r\n", key, value)
@@ -65,10 +72,11 @@ func (h *ForwarderHandler) buildRFC2822Message(from string, to []string, data []
 		}
 	}
 
-	if msg.Header.Get("From") == "" {
+	// Only add headers if they weren't present in the original message
+	if !hasFrom {
 		fmt.Fprintf(&buf, "From: %s\r\n", from)
 	}
-	if msg.Header.Get("To") == "" {
+	if !hasTo {
 		fmt.Fprintf(&buf, "To: %s\r\n", strings.Join(to, ", "))
 	}
 

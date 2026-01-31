@@ -2,7 +2,9 @@ package gmail
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -85,7 +87,8 @@ func tokenFromFile(file string) (*oauth2.Token, error) {
 
 // getTokenFromWeb initiates OAuth2 flow in browser
 func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
-	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+	stateToken := generateStateToken()
+	authURL := config.AuthCodeURL(stateToken, oauth2.AccessTypeOffline)
 	fmt.Printf("Go to the following link in your browser:\n%v\n", authURL)
 	fmt.Print("Enter authorization code: ")
 
@@ -102,9 +105,16 @@ func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 	return token, nil
 }
 
-// saveToken saves token to file
+// generateStateToken creates a random state token for OAuth2 CSRF protection
+func generateStateToken() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// saveToken saves token to file with secure permissions
 func saveToken(file string, token *oauth2.Token) error {
-	f, err := os.Create(file)
+	f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to create token file: %w", err)
 	}

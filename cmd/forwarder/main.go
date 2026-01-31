@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/HakimYu/smtp-gmail-forwarder/internal/config"
+	"github.com/HakimYu/smtp-gmail-forwarder/internal/gmail"
+	smtpserver "github.com/HakimYu/smtp-gmail-forwarder/internal/smtp"
 	"github.com/emersion/go-smtp"
-	"github.com/yourusername/smtp-gmail-forwarder/internal/config"
-	"github.com/yourusername/smtp-gmail-forwarder/internal/gmail"
-	smtpserver "github.com/yourusername/smtp-gmail-forwarder/internal/smtp"
 )
 
 func main() {
