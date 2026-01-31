@@ -1,0 +1,34 @@
+# 敏感文件（绝对不能打包）
+credentials.json
+token.json
+config.yaml
+*.pem
+*.key
+*.env
+
+# 开发文件
+.git
+.gitignore
+*.md
+README.md
+
+# 构建文件
+Dockerfile
+docker-compose.yml
+.dockerignore
+setup-oauth.sh
+
+# 编译产物
+forwarder
+*.exe
+*.test
+
+# 数据目录
+data/
+config/
+
+# IDE 文件
+.vscode/
+.idea/
+*.swp
+*.swo

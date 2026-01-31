@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  smtp-forwarder:
+    build: .
+    container_name: smtp-gmail-forwarder
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:2525:2525"
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+    networks:
+      - webnet
+
+networks:
+  webnet:
+    name: webnet
+    external: true

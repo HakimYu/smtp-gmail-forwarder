@@ -1,0 +1,7 @@
+smtp:
+  host: 0.0.0.0
+  port: 2525
+
+gmail:
+  credentials_file: /app/config/credentials.json
+  token_file: /app/data/token.json
