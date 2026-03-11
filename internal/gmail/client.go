@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -17,7 +18,9 @@ import (
 
 // Client wraps Gmail API client with authentication
 type Client struct {
-	service *gmail.Service
+	service   *gmail.Service
+	config    *oauth2.Config
+	tokenFile string
 }
 
 // NewClient creates a new Gmail API client
@@ -47,7 +50,11 @@ func NewClient(ctx context.Context, credentialsFile, tokenFile string) (*Client,
 		return nil, fmt.Errorf("failed to create Gmail service: %w", err)
 	}
 
-	return &Client{service: service}, nil
+	return &Client{
+		service:   service,
+		config:    config,
+		tokenFile: tokenFile,
+	}, nil
 }
 
 // getToken retrieves a token from file or initiates OAuth2 flow
@@ -55,10 +62,25 @@ func getToken(config *oauth2.Config, tokenFile string) (*oauth2.Token, error) {
 	// Try to read token from file
 	token, err := tokenFromFile(tokenFile)
 	if err == nil {
-		return token, nil
+		// Verify token is still valid by attempting to refresh it if needed
+		// This catches expired tokens early
+		tokenSource := config.TokenSource(context.Background(), token)
+		freshToken, err := tokenSource.Token()
+		if err == nil {
+			// Save the refreshed token if it's different
+			if freshToken.AccessToken != token.AccessToken || freshToken.RefreshToken != token.RefreshToken {
+				if saveErr := saveToken(tokenFile, freshToken); saveErr != nil {
+					fmt.Printf("Warning: could not save refreshed token: %v\n", saveErr)
+				}
+				return freshToken, nil
+			}
+			return token, nil
+		}
+		// If token refresh failed, we'll proceed to get a new token
+		fmt.Printf("Token refresh failed: %v, will get new token\n", err)
 	}
 
-	// Token not found, initiate OAuth2 flow
+	// Token not found or invalid, initiate OAuth2 flow
 	token, err = getTokenFromWeb(config)
 	if err != nil {
 		return nil, err
@@ -125,19 +147,65 @@ func saveToken(file string, token *oauth2.Token) error {
 
 // SendMessage sends an email via Gmail API
 func (c *Client) SendMessage(ctx context.Context, rawMessage []byte) error {
-	// Encode message in base64url format
+	return c.sendMessageWithTokenRefresh(ctx, rawMessage, true)
+}
+
+func (c *Client) sendMessageWithTokenRefresh(ctx context.Context, rawMessage []byte, retryOnTokenError bool) error {
 	encoded := base64.URLEncoding.EncodeToString(rawMessage)
 
-	// Create message
 	message := &gmail.Message{
 		Raw: encoded,
 	}
 
-	// Send message
 	_, err := c.service.Users.Messages.Send("me", message).Context(ctx).Do()
 	if err != nil {
+		if retryOnTokenError && isTokenError(err) {
+			fmt.Printf("Token error detected: %v, attempting to refresh token\n", err)
+
+			token, tokenErr := getToken(c.config, c.tokenFile)
+			if tokenErr != nil {
+				return fmt.Errorf("failed to get new token: %w (original error: %w)", tokenErr, err)
+			}
+
+			httpClient := c.config.Client(ctx, token)
+			newService, serviceErr := gmail.NewService(ctx, option.WithHTTPClient(httpClient))
+			if serviceErr != nil {
+				return fmt.Errorf("failed to create new Gmail service: %w (original error: %w)", serviceErr, err)
+			}
+
+			c.service = newService
+
+			return c.sendMessageWithTokenRefresh(ctx, rawMessage, false)
+		}
 		return fmt.Errorf("failed to send message: %w", err)
 	}
 
 	return nil
+}
+
+func isTokenError(err error) bool {
+	errStr := err.Error()
+	return containsAny(errStr, []string{
+		"invalid_grant",
+		"invalid_token",
+		"token expired",
+		"access_token",
+		"401",
+		"403",
+	})
+}
+
+func containsAny(s string, substrings []string) bool {
+	for _, substr := range substrings {
+		if containsIgnoreCase(s, substr) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsIgnoreCase(s, substr string) bool {
+	sLower := strings.ToLower(s)
+	substrLower := strings.ToLower(substr)
+	return strings.Contains(sLower, substrLower)
 }
